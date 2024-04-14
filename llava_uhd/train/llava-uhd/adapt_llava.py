@@ -86,17 +86,47 @@ class adapt_LlavaMetaForCausalLM(ABC):
     
     def encode_images(self, images,origin_image_widths,origin_image_heights):
         
+        # print("len(images)",len(images))
+        # print("images[0]",images[0].shape)
         image_features = self.get_model().get_vision_tower()(images,origin_image_widths,origin_image_heights)
+
+        # for i in range(8):
+        #     print(image_features[i][0][0][0].item(),end="|")
+        # print(" ")
+
+        # print("len(image_features)",len(image_features))
+        # print("image_features[0].shape",image_features[0].shape)
+        # len(image_features) 8
+        # image_features[0].shape torch.Size([32, 576, 1024])
+
         if isinstance(image_features,list):
+            # print("len(image_features)",len(image_features))
             image_features_list = []
             for image_feature in image_features:
+                # print(image_feature)
+                # 将维度为5120的向量是否全为0的布尔掩码
+                # mask = torch.all(image_feature == 0, dim=2)
+
+                # # 打印维度为5120的向量为0的位置
+                # indices = torch.nonzero(mask)
+
+                # print("维度为5120的向量为0的位置：")
+                # print(indices)
 
                 image_features_list.append(self.get_model().mm_projector(image_feature))
+            # print("image_features_list[0].shape",image_features_list[0].shape)
             image_features = torch.concat( tuple(image_features_list) ,dim = 0)
+            # print("image_features.shape",image_features.shape)
+            # image_features.shape torch.Size([32, 64, 5120])
+
 
         else:
+            # print("image_features.shape",image_features.shape)
             image_features = self.get_model().mm_projector(image_features)
-            
+
+        # print("image_features.shape",image_features.shape)
+        # image_features.shape torch.Size([256, 64, 5120])
+
         return image_features
 
     def prepare_inputs_labels_for_multimodal(
@@ -115,7 +145,7 @@ class adapt_LlavaMetaForCausalLM(ABC):
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
 
         image_features = self.encode_images(images,origin_image_widths,origin_image_heights).to(self.device)
-
+        # print("image_features.shape",image_features.shape)
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):
             raise NotImplementedError
@@ -143,6 +173,7 @@ class adapt_LlavaMetaForCausalLM(ABC):
         new_input_embeds = []
         new_labels = []
         cur_image_idx = 0
+        
         for batch_idx, cur_input_ids in enumerate(input_ids):
             num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
 
@@ -167,15 +198,13 @@ class adapt_LlavaMetaForCausalLM(ABC):
                 cur_new_labels.append(cur_labels_noim[i])
 
                 if i < num_images:
-                    for j in range(5):
-                        cur_image_features = image_features[cur_image_idx+j*16]
+                    for j in range(8):
+                        cur_image_features = image_features[cur_image_idx+j*4]
                         cur_new_input_embeds.append(cur_image_features)
                         cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, device=cur_labels.device, dtype=cur_labels.dtype))
 
-
             cur_new_input_embeds = torch.cat(cur_new_input_embeds)
             cur_new_labels = torch.cat(cur_new_labels)
-
 
             new_input_embeds.append(cur_new_input_embeds)
             new_labels.append(cur_new_labels)

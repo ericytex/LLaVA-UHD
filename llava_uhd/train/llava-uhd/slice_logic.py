@@ -126,13 +126,16 @@ def slice_image(image):
     best_w, best_h = cal_num_of_slices(origin_image_width=origin_image_width,origin_image_height=origin_image_height)
     
     slices = []
+    # print(best_w,best_h)
     
     for j in range(best_h):
         for i in range(best_w):
             
             box = (i * origin_image_width//best_w, j * origin_image_height//best_h, (i + 1) * origin_image_width//best_w, (j + 1) * origin_image_height//best_h)
-         
+            # print(box)
+            # 切割图片
             region = image.crop(box).convert("RGB")
+            # 添加到列表
             slices.append(region)
           
     return slices
@@ -210,15 +213,3 @@ def process_image(image):
             resized_patch_widths.append(resized_patch_width)
             resized_patch_heights.append(resized_patch_height)
         return images
-
-
-img = Image.open("/home/xuruyi/myLLaVa/883700e3366b775c93315373510e7e7.png")
-images = process_image(img)
-
-for i in range(len(images)):
-    img = images[i]
-    to_pil = ToPILImage()
-
-    img = to_pil(img)
-
-    img.save(f"image{i}.png")
